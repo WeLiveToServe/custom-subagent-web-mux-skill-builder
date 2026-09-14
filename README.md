@@ -19,3 +19,18 @@ In the backdrop of all of this, there is a verification/authentication issue. AP
 The design of WebMCP bypasses this. It operates (or will operate) in your own browser. Which means you are already signed in AND it has all of your cookies, state variables, etc that have a lot to do with getting what you want in as close a manner as possible as you yourself would.
 
 I said WILL operate in the browser since it is a standard in beta from google. We'll need to use google chrome canary (as in a coalmine) developer browser. Playwright is very well understood, and thankfully all of the playwright tools are meant to work in canary, except you WON'T have the constant re-auth and work without cookies/statefullness issues. 
+
+ok, focusing up.
+All of the shit you and I do on the web or want an agent to do has the above properties for working with it: API, cli, MCP, WebMCP, or in pinch Computer Use.
+
+I want this repo to have an agent (read llm in a harness with access to tools) that goes through our browsing history, allows us to specify websites, and perhaps watches (privately) how we generally use the web and webapps in order to get "best practices" for what we do.
+
+The agent would:
+-start with any website, let's say schwab.com
+-evaluate what tools ARE available on the server side: api, mcp, webmcp, comp use, cli and audit their documentation. Then it would come up with a "best practice" approach that gets what we want with highest reliability, lowest latency, and lowest token use.
+-this is important, otherwise an agent going to the same site over and over will ALWAYS ingest all of the API docs, MCP docs, painstakingly click around in Computer Use, etc..
+-now it will have a concise runbook with the minimum tools it needs to get what we want. very efficient.
+
+basically I want the agent to first collect all of the sites we visit and infer what we use them for. Then I want it (probably a cheap model) to query the server and test out all possible paths (api, mcp, cli) to get what we want efficiently. 
+over time it will build up the usual activiiies we do for each site and add to its repertoire.
+again a cheap agent will visit these sites daily and confirm that the current runbooks are still valid, so that an agent we're working with doesn't need to find broken documentation/calls and slow down
