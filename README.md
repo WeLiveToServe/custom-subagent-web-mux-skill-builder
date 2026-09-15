@@ -1,36 +1,85 @@
-# custom-subagent-web-mux-skill-builder
-Just going to write out what I am thinking in plain human format. 
-First, I think coding agents and grok/cowork/openai pre-rolled agents are very general. When you say "I have a document in my email from Amanda about a bidet. Look at it and see if it can easily fit in the bathroom."
-My sense is that it just takes what you're asking and starts to roll through it's tools without common sense. It may pull and scan all of your emails to look for an amanda instead of just using the search bar. It will then go email by freshly look for any context that fit's what you've told it. It grabs a PDF, uses a PDF OCR tool, looks at the text, then takes a screenshot and starts to work on layout."
-This is a convoluted example, but we would more efficiently just use the search bar with "amanda has:attachment" and then scan.
+# Custom Subagent Web Mux Skill Builder
 
-That describes a workflow and is a good example to start with. We could do those app specific workflows same as the web use agent but I'd rather start with the web stuff as it is more general and I think the architecture is cleaner.
+Build a small, inexpensive discovery agent that learns how a person actually uses the web.
 
-My understanding is this. There are many ways that individual websites, which I'll call servers or server side, make information available programmatically to users/browsers which I will call clients or client side. A lot of them are of course left over from traditional dev approaches. They are:
-  -API- you send a text request exactly formatted to what the client's API documentation specifies. It is highly use case specific and depends on having a token and sometimes an authenticated browser tab open on the client side. It is not "fragile" per se but is highly structured, deterministic, and subject to the server/website developers changing the api documentation
-  -MCP- The anthropic protocal that essentially inserts an LLM with a system prompt on the server side. It takes an client/user LLM's text query and translates it into API calls to provide what the client is looking for. It has its own rules, guidelines, runbooks etc... that help the server deliver fairly structured data that clients/agents often ask for. It's more complicated, but that is the gist. It is resource heavy for a website provider to develop and manage. Many exist, but they are fragile in their own way depending on the server. GitHub and Cloudflare have amazing MCPs. Many do not
-  -CLI- Command Line interface. Instead of API documentation to give the client/developer precisely structured text rules and attributes, agents use a library/package that is specific to a given website. So github has gh cli, oracle as oci cli, amazon has aws cli, cloudflare has wrangler, etc... These are much better and less brittle. They are also easier to compose as scripts as a opposed to stringing API calls together. An agent is very, very good at using these. However, it is heavy token spend. The agent has to consume the entire cli to understand what it needs to do. This then goes in the context window and creates a lot of unnecessary bloat. You can work around this but it isn't easy. It is also deterministic and made more for backend products, not personal agents that want very limited info per visit at the users request. You don't need to read all of shakespeare to know whe said "et tu, brute" and why,
-  -WebMCP is a new framework that is geared more for the consumer and is WAY more lightweight since it is javascript in the browser/https that the site is serving. MCP's require back end architecture and have to worry about front end, middleware, and backend. WebMCPs are lighter weight, much easier to implement, and focused on just delivering what the site would offer to a normal human: eg search the product field, dowmload my statement, etc etc... It is also VERY token efficient. Your agent says "I want to search for products" and the WEBMcp says "okay just put the text in this field."
-      A quick note on token efficiency- i'm focusing on this not so much because of token expense but instead because of 1) context bloat and 2) latency in that order. 
-  -ComputerUse- This is the worst of all of the above but without WebMCP often the only choice. The agent navigates to a site. Takes a screemshot, parses it, tries to figure out what needs to be clicked or filled out, and crawls through the whole process. You can't even remember pixel locations to click next stime because advertising, tiny front end changes, and settings on your own computer screw it up.
+It turns recurring work into dependable, low-latency runbooks.
 
-In the backdrop of all of this, there is a verification/authentication issue. API's need a token/key, CLI's need the same, MCP and computer use is primarily done by single use browser instances, normally in Playwright (a computer friendly chrome browser.) In doing so, it becomes authentication hell. It opens a browser instance, you need to 2FA your 401k provider, it closes the browser by default, and next time it has to repeated all over again.
+The intended output is not a general-purpose browsing agent. It is a growing library of narrowly scoped skills: concise instructions that tell an execution agent the best available way to complete a familiar task on a particular service.
 
-The design of WebMCP bypasses this. It operates (or will operate) in your own browser. Which means you are already signed in AND it has all of your cookies, state variables, etc that have a lot to do with getting what you want in as close a manner as possible as you yourself would.
+## The problem
 
-I said WILL operate in the browser since it is a standard in beta from google. We'll need to use google chrome canary (as in a coalmine) developer browser. Playwright is very well understood, and thankfully all of the playwright tools are meant to work in canary, except you WON'T have the constant re-auth and work without cookies/statefullness issues. 
+General-purpose agents often rediscover the same workflow every time. They may browse a UI, read large bodies of documentation, inspect APIs, or drive a browser by screenshots before doing a simple repeatable task. That wastes time and context, and creates more chances for a brittle workflow to fail.
 
-ok, focusing up.
-All of the shit you and I do on the web or want an agent to do has the above properties for working with it: API, cli, MCP, WebMCP, or in pinch Computer Use.
+For a recurring task, the best path may be much simpler. For example, searching an email service with a precise query and opening one attachment is generally better than scanning a mailbox and interpreting every possible match.
 
-I want this repo to have an agent (read llm in a harness with access to tools) that goes through our browsing history, allows us to specify websites, and perhaps watches (privately) how we generally use the web and webapps in order to get "best practices" for what we do.
+Different websites expose different access points: APIs, CLIs, MCP servers, and browser-native interfaces. Some expose none that are useful for the task, leaving browser automation or computer use as the only practical option. The emerging WebMCP standard is especially promising because it could expose user-facing browser actions in a compact, agent-friendly form.
 
-The agent would:
--start with any website, let's say schwab.com
--evaluate what tools ARE available on the server side: api, mcp, webmcp, comp use, cli and audit their documentation. Then it would come up with a "best practice" approach that gets what we want with highest reliability, lowest latency, and lowest token use.
--this is important, otherwise an agent going to the same site over and over will ALWAYS ingest all of the API docs, MCP docs, painstakingly click around in Computer Use, etc..
--now it will have a concise runbook with the minimum tools it needs to get what we want. very efficient.
+The discovery agent should proactively identify each site’s available access points and smoke-test authorized candidates. It should decide both the best general way to access a site and, when several options exist, the best path for a common repeated user task or request.
 
-basically I want the agent to first collect all of the sites we visit and infer what we use them for. Then I want it (probably a cheap model) to query the server and test out all possible paths (api, mcp, cli) to get what we want efficiently. 
-over time it will build up the usual activiiies we do for each site and add to its repertoire.
-again a cheap agent will visit these sites daily and confirm that the current runbooks are still valid, so that an agent we're working with doesn't need to find broken documentation/calls and slow down
+Those access points shift over time. A UI changes, an API is revised or its documentation drifts, a CLI command evolves, an MCP tool’s behavior changes, or a browser-native integration gains or loses capability. A previously strong workflow can therefore become fragile without warning.
+
+This project aims to make the judgment once, record it clearly, and verify it continuously.
+
+## Goal
+
+Given a website and a user activity, determine and maintain the execution path that best balances:
+
+1. Reliability
+2. Low latency
+3. Low context/token use
+4. Minimal and appropriate access
+
+The system should be able to perform most research, evaluation, and routine validation with a modern low-cost model, such as OpenAI Luna, Gemini Flash, or Claude Haiku. More capable models should be reserved for ambiguous, high-impact, or failed cases.
+
+## Access paths to evaluate
+
+For each site and task, the discovery agent inventories the available interfaces and chooses the smallest suitable one.
+
+| Path | Best use | Typical tradeoff |
+| --- | --- | --- |
+| API | Stable, structured operations with available authorization | Requires credentials and knowledge of a service-specific schema |
+| CLI | Scriptable operations supported by a vendor tool | Often broad and verbose; command discovery can add context cost |
+| MCP | Structured tools exposed by a service | Quality and coverage vary by provider |
+| Browser-native/WebMCP-style interfaces | User-facing actions in the user’s signed-in browser | Emerging ecosystem and browser support may vary |
+| Browser automation / computer use | A fallback when no better interface exists | Slowest and most fragile; sensitive to UI, layout, and state changes |
+
+An API or CLI is not automatically the right answer. The selected path should serve the actual user task with the least complexity, rather than exposing an agent to every capability a provider offers.
+
+## How it should work
+
+1. **Discover recurring work.** With explicit user consent, review selected browsing history, user-nominated sites, and optionally private local observations to identify repeat activities.
+2. **Define the task.** Convert an observed behavior into a bounded, human-readable goal—for example, “find Amanda’s bidet attachment” rather than “search email.”
+3. **Inventory interfaces.** Identify documented APIs, CLIs, MCP servers, browser-exposed capabilities, and feasible UI automation paths.
+4. **Evaluate candidate workflows.** Test only authorized, safe paths and score them for success rate, latency, token/context cost, permissions required, and maintenance burden.
+5. **Create a runbook.** Store the winning workflow as a compact skill with inputs, preconditions, exact tool sequence, expected outputs, recovery guidance, and a validation check.
+6. **Monitor and improve.** An inexpensive maintenance agent revisits the preferred paths daily, tests the runbooks, and checks for changes in workflows, APIs and their documentation, MCP tools, and browser-native/WebMCP capabilities. It proposes the smallest update needed to restore reliability, latency, and context efficiency, and escalates only when a workflow changes materially or needs user action.
+
+## Runbook principles
+
+- Prefer deterministic interfaces before UI automation.
+- Prefer targeted queries and narrow tools over exhaustive searching or broad documentation ingestion.
+- Keep each skill task-specific and small enough to load only when needed.
+- Reuse the user’s existing authenticated browser state where an appropriate browser-native mechanism permits it; do not casually export cookies or bypass authentication controls.
+- Treat credentials, financial information, health information, and other sensitive data as explicit-scope access only.
+- Preserve a safe fallback path and say when the system needs human approval, authentication, or judgment.
+
+## Initial scope
+
+Start with a handful of user-nominated web tasks that occur often and have clear success criteria. Build the smallest viable pipeline:
+
+- a task/site inventory;
+- a repeatable interface audit;
+- a scoring rubric for competing execution paths;
+- a structured runbook format;
+- a validator that checks whether a stored runbook still works; and
+- a review queue for proposed changes.
+
+Browser-history mining, passive observation, automatic daily checks, and broad cross-site discovery are later phases. They should be opt-in, transparent, and designed around local-first data handling.
+
+## Success looks like
+
+When an execution agent receives a familiar request, it should load one short, current runbook and complete the work through the appropriate interface—without re-learning the website, re-reading extensive documentation, or crawling the UI unless that is genuinely necessary.
+
+## Original notes
+
+The unedited stream-of-consciousness source for this README is retained in [`keith-scope-dump`](./keith-scope-dump).
